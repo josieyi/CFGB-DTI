@@ -6,7 +6,12 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import average_precision_score, f1_score, precision_recall_curve, roc_auc_score
+from sklearn.metrics import (
+    average_precision_score,
+    precision_recall_curve,
+    roc_auc_score,
+    accuracy_score,
+)
 from torch.nn.utils import clip_grad_norm_
 from tqdm import tqdm
 
@@ -17,7 +22,7 @@ from utils import save_best_checkpoint
 class EvaluationResult:
     auroc: float
     auprc: float
-    f1: float
+    accuracy: float
     loss: float
     threshold: float
 
@@ -258,31 +263,44 @@ def train(
     return best_auroc
 
 
-def select_f1_threshold(labels: np.ndarray, probabilities: np.ndarray) -> float:
-    precision, recall, thresholds = precision_recall_curve(labels, probabilities)
+def select_accuracy_threshold(
+    labels: np.ndarray, probabilities: np.ndarray
+) -> float:
+    thresholds = np.unique(probabilities)
+
     if thresholds.size == 0:
         return 0.5
-    f1_values = 2.0 * precision[:-1] * recall[:-1] / (
-        precision[:-1] + recall[:-1] + 1e-12
-    )
-    return float(thresholds[int(np.nanargmax(f1_values))])
+
+    accuracies = []
+    for threshold in thresholds:
+        predictions = (probabilities >= threshold).astype(np.int64)
+        accuracies.append(
+            accuracy_score(labels, predictions)
+        )
+
+    return float(thresholds[int(np.argmax(accuracies))])
 
 
 def evaluate_with_validation_threshold(
     model, validation_loader, test_loader, args
 ) -> EvaluationResult:
-    val_labels, val_probabilities, _ = collect_predictions(
-        model, validation_loader, args.device
-    )
-    threshold = select_f1_threshold(val_labels, val_probabilities)
+
+    val_labels, val_probabilities, _ = collect_predictions(model, validation_loader, args.device)
+
+    threshold = select_accuracy_threshold(val_labels,val_probabilities,)
+
     test_labels, test_probabilities, test_loss = collect_predictions(
-        model, test_loader, args.device
+        model,
+        test_loader,
+        args.device,
     )
+
     predictions = (test_probabilities >= threshold).astype(np.int64)
+
     return EvaluationResult(
         auroc=float(roc_auc_score(test_labels, test_probabilities)),
         auprc=float(average_precision_score(test_labels, test_probabilities)),
-        f1=float(f1_score(test_labels, predictions, zero_division=0)),
+        accuracy=float(accuracy_score(test_labels, predictions)),
         loss=float(test_loss),
         threshold=float(threshold),
     )

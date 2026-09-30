@@ -172,8 +172,8 @@ def main() -> None:
     )
 
     result_text = (
-        "AUROC={:.6f}, AUPRC={:.6f}, F1={:.6f}, BestValAUROC={:.6f}".format(
-            result.auroc, result.auprc, result.f1, float(checkpoint["best_auroc"])
+        "AUROC={:.6f}, AUPRC={:.6f}, Accuracy={:.6f}, BestValAUROC={:.6f}".format(
+            result.auroc, result.auprc, result.accuracy, float(checkpoint["best_auroc"])
         )
     )
     result_path = args.result_dir / "{}_{}.txt".format(args.dataset, args.split)
